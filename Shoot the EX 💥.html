@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shoot the EX 💥</title>
+<style>
+:root{--bg1:#ffe3ef;--bg2:#e9defa;--ink:#3b1d4a;--card:#ffffffee;--accent:#ff4f8b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#2a1030;--bg2:#171233;--ink:#fde7f3;--card:#2b1b3fee;--accent:#ff6fa3}}
+:root[data-theme="dark"]{--bg1:#2a1030;--bg2:#171233;--ink:#fde7f3;--card:#2b1b3fee;--accent:#ff6fa3}
+html,body{height:100%;margin:0}
+body{background:linear-gradient(160deg,var(--bg1),var(--bg2));color:var(--ink);font-family:"Trebuchet MS",system-ui,sans-serif;overflow:hidden;touch-action:none;user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+#hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;text-align:center;font-weight:700;pointer-events:none}
+#bar{width:min(260px,60vw);height:12px;border-radius:8px;background:#0002;margin:6px auto 0;overflow:hidden}
+#fill{height:100%;width:100%;background:var(--accent);transition:width .3s}
+#toast{position:fixed;left:50%;top:52%;transform:translate(-50%,0);max-width:80vw;text-align:center;font-size:clamp(20px,5vw,32px);font-weight:800;opacity:0;pointer-events:none;text-shadow:0 2px 0 #fff8}
+#toast.show{animation:pop 1.6s ease forwards}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,20px) scale(.7)}15%{opacity:1;transform:translate(-50%,0) scale(1.1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-40px)}}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0004;padding:16px}
+.card{background:var(--card);border-radius:22px;padding:24px;max-width:420px;width:100%;text-align:center;box-shadow:0 12px 40px #0004;max-height:90%;overflow:auto}
+.card h1{margin:0 0 8px;font-size:28px}.card p{line-height:1.5;margin:8px 0}
+input{font:inherit;padding:10px 14px;border-radius:12px;border:2px solid var(--accent);width:80%;background:transparent;color:var(--ink);text-align:center;margin:8px 0}
+button{font:inherit;font-weight:800;background:var(--accent);color:#fff;border:0;border-radius:14px;padding:12px 26px;margin-top:10px;cursor:pointer}
+.hide{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><div id="hl">Tap to shoot the EX! 🎯</div><div id="bar"><div id="fill"></div></div></div>
+<div id="toast"></div>
+
+<div class="ov" id="start"><div class="card">
+<h1>💥 Shoot the EX 💥</h1>
+<p>A little game made just for you. Tap or click anywhere to fire. Five hits and that guy is history.</p>
+<input id="nm" placeholder="Your name (optional)" maxlength="20">
+<br><button id="go">Let's go!</button>
+</div></div>
+
+<div class="ov hide" id="end"><div class="card">
+<h1 id="et"></h1>
+<p id="em"></p>
+<button id="again">Play again 🔁</button>
+</div></div>
+
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,dpr;
+function size(){dpr=window.devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',size);size();
+
+const MAX=5;
+const hitMsgs=["Bullseye! 🎯","Ouch, that's gotta hurt 😆","You deserve SO much better 💖","Look at you moving on! ✨","One more, queen! 👑"];
+let name="",hp,playing=false,t=0,balls=[],parts=[],cracks=[],shake=0,broken=false;
+
+function reset(){hp=MAX;balls=[];parts=[];cracks=[];broken=false;t=0;fill();document.getElementById('hl').textContent="Tap to shoot the EX! 🎯"}
+function fill(){document.getElementById('fill').style.width=(hp/MAX*100)+'%'}
+
+const B={w:0,h:0,x:0,y:0};
+function board(){
+  B.w=Math.min(150,W*.4);B.h=B.w*1.6;B.y=H*.2;
+  const sp=1+(MAX-hp)*.35;
+  B.x=W/2+Math.sin(t*.02*sp)*(W/2-B.w/2-16)-B.w/2;
+}
+
+function shoot(x,y){
+  if(!playing||broken)return;
+  const sx=W/2,sy=H-50,a=Math.atan2(y-sy,x-sx),v=Math.max(11,H/55);
+  balls.push({x:sx,y:sy,vx:Math.cos(a)*v,vy:Math.sin(a)*v});
+}
+cv.addEventListener('pointerdown',e=>shoot(e.clientX,e.clientY));
+
+function toast(s){const el=document.getElementById('toast');el.textContent=s;el.classList.remove('show');void el.offsetWidth;el.classList.add('show')}
+
+function burst(x,y,n,wood){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.28,s=2+Math.random()*7;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-3,life:70+Math.random()*40,
+      c:wood?['#e85d5d','#f2c9a0','#2f3a55','#2b1d12'][i%4]:`hsl(${Math.random()*360},90%,60%)`,s:wood?6+Math.random()*10:5+Math.random()*5,r:Math.random()*6,wood})
+  }
+}
+
+function hit(bx,by){
+  hp--;fill();shake=14;
+  cracks.push({x:bx-B.x,y:by-B.y,a:[...Array(4)].map(()=>Math.random()*6.28)});
+  burst(bx,by,18,true);
+  if(hp<=0){
+    broken=true;burst(B.x+B.w/2,B.y+B.h/2,90,true);burst(W/2,H*.4,120,false);
+    toast("BOOM! 💥 EX destroyed!");
+    document.getElementById('hl').textContent="Victory! 🎉";
+    setTimeout(finish,1700);
+  }else{toast(hitMsgs[MAX-hp-1])}
+}
+
+function finish(){
+  playing=false;
+  const n=name?name:"you";
+  document.getElementById('et').textContent=name?`${name}, you're amazing 💖`:"You're amazing 💖";
+  document.getElementById('em').innerHTML=
+   `That guy never deserved a spot in your story, and neither does the sadness it left behind.<br><br>`+
+   `${name?name+', ':''}you're kind, funny, strong, and way too special to waste tears on someone who couldn't see it. `+
+   `The right people stay, and I'm one of them. I'm always here for you: late-night talks, silly games, ice cream, whatever you need. 🍦<br><br>`+
+   `Now go smile, because it looks way better on ${n} than any heartbreak ever did. 🌸<br><br><b>Love, your best friend 🫶</b>`;
+  document.getElementById('end').classList.remove('hide');
+  for(let i=0;i<4;i++)setTimeout(()=>burst(Math.random()*W,H*.3,60,false),i*350);
+}
+
+function drawBoard(){
+  if(broken)return;
+  const w=B.w,h=B.h,sw=Math.sin(t*.25)*.6;
+  ctx.save();
+  const sx=shake>0?(Math.random()-.5)*shake:0;
+  ctx.translate(B.x+sx+w/2,B.y+h/2);ctx.rotate(Math.sin(t*.08)*.05+(shake>0?(Math.random()-.5)*.12:0));ctx.translate(-w/2,-h/2);
+  ctx.lineCap='round';ctx.lineJoin='round';
+  // legs
+  ctx.fillStyle='#2f3a55';
+  ctx.fillRect(w*.25,h*.68,w*.2,h*.27);ctx.fillRect(w*.55,h*.68,w*.2,h*.27);
+  ctx.fillStyle='#222';
+  ctx.fillRect(w*.2,h*.93,w*.27,h*.06);ctx.fillRect(w*.53,h*.93,w*.27,h*.06);
+  // arms
+  ctx.strokeStyle='#f2c9a0';ctx.lineWidth=w*.1;
+  ctx.beginPath();ctx.moveTo(w*.17,h*.38);ctx.lineTo(w*.17-Math.cos(sw)*w*.15,h*.38+h*.2+Math.sin(sw)*h*.08);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w*.83,h*.38);ctx.lineTo(w*.83+Math.cos(sw)*w*.15,h*.38+h*.2-Math.sin(sw)*h*.08);ctx.stroke();
+  // torso with EX
+  ctx.fillStyle='#e85d5d';ctx.strokeStyle='#7a2020';ctx.lineWidth=3;
+  ctx.beginPath();ctx.roundRect(w*.15,h*.33,w*.7,h*.38,10);ctx.fill();ctx.stroke();
+  ctx.font=`900 ${w*.38}px Impact,Arial Black,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.lineWidth=5;ctx.strokeStyle='#4a1010';ctx.strokeText('EX',w/2,h*.52);
+  ctx.fillStyle='#fff';ctx.fillText('EX',w/2,h*.52);
+  // head
+  const hx=w/2,hy=h*.19,r=w*.28;
+  ctx.fillStyle='#f2c9a0';ctx.strokeStyle='#8a5a30';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(hx,hy,r,0,6.283);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#2b1d12';
+  ctx.beginPath();ctx.arc(hx,hy-r*.15,r*1.02,Math.PI*1.05,Math.PI*1.95);ctx.fill();
+  // face by health
+  ctx.strokeStyle='#2b1d12';ctx.fillStyle='#2b1d12';ctx.lineWidth=3;
+  const ey=hy+r*.05,ex=r*.38;
+  if(hp<=2){
+    [-1,1].forEach(d=>{const x=hx+d*ex;ctx.beginPath();ctx.moveTo(x-5,ey-5);ctx.lineTo(x+5,ey+5);ctx.moveTo(x+5,ey-5);ctx.lineTo(x-5,ey+5);ctx.stroke()});
+    ctx.beginPath();ctx.ellipse(hx,hy+r*.55,r*.2,r*.25,0,0,6.283);ctx.fill();
+  }else{
+    [-1,1].forEach(d=>{ctx.beginPath();ctx.arc(hx+d*ex,ey,3.5,0,6.283);ctx.fill()});
+    ctx.beginPath();
+    if(hp>=5){ctx.arc(hx,hy+r*.3,r*.4,.15*Math.PI,.85*Math.PI)}
+    else{ctx.arc(hx,hy+r*.75,r*.35,1.15*Math.PI,1.85*Math.PI)}
+    ctx.stroke();
+  }
+  // bruises
+  ctx.font=`${w*.2}px serif`;
+  cracks.forEach(c=>ctx.fillText('💥',(c.x/ B.w)*w*.8+w*.1,(c.y/B.h)*h*.8+h*.1));
+  ctx.restore();
+}
+
+function loop(){
+  t++;ctx.clearRect(0,0,W,H);board();
+  if(shake>0)shake-=1;
+  drawBoard();
+  // balls
+  balls=balls.filter(b=>{
+    b.x+=b.vx;b.y+=b.vy;
+    if(!broken&&b.x>B.x&&b.x<B.x+B.w&&b.y>B.y&&b.y<B.y+B.h){hit(b.x,b.y);return false}
+    ctx.font='28px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('💘',b.x,b.y);
+    return b.x>-40&&b.x<W+40&&b.y>-40&&b.y<H+40;
+  });
+  // particles
+  parts=parts.filter(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.vy+=.25;p.life--;p.r+=.2;
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.globalAlpha=Math.min(1,p.life/30);
+    ctx.fillStyle=p.c;ctx.fillRect(-p.s/2,-p.s/4,p.s,p.wood?p.s/2:p.s/3);ctx.restore();
+    return p.life>0;
+  });
+  // shooter
+  ctx.font='40px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🏹',W/2,H-40);
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('go').onclick=()=>{
+  name=document.getElementById('nm').value.trim();
+  document.getElementById('start').classList.add('hide');
+  reset();playing=true;
+};
+document.getElementById('again').onclick=()=>{
+  document.getElementById('end').classList.add('hide');
+  reset();playing=true;
+};
+loop();
+</script>
+</body>
+</html>
